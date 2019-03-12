@@ -1,0 +1,142 @@
+---
+title: "Placental Weight vs BWT"
+author: "Chris Flatley"
+date: "12 March 2019"
+#output: html_document
+output:
+ md_document:
+   variant: markdown_github
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r, warning=FALSE, message=FALSE}
+library(ggplot2)
+library(glm2)
+library(mgcv)
+
+```
+
+```{r}
+load(file="C:/Users/cjfla/Desktop/v10/r_data/2018_02_01_PDB315_MFR_520_v10.RData")
+```
+
+First subset the daa to exclude extreme outliers.
+
+```{r}
+mfr1<-subset(mfr, PLACENTAVEKT<2000 & PLACENTAVEKT>200 & VEKT>1000 & (KJONN=="Boy"|KJONN=="Girl"), select=c(PLACENTAVEKT,VEKT,SVLEN, SVLEN.UL.DG, SVLEN.SM.DG, FAAR, HELSEREGION, KJONN))
+```
+
+
+Fit a generaised linear model to this data and plot the regression line. 
+
+
+```{r}
+mfr1[1:2] <- lapply(mfr1[1:2], as.numeric)
+fit1 <- glm(VEKT ~ PLACENTAVEKT, data=mfr1,
+family = gaussian(link="identity"))
+summary(fit1)
+ggplot(mfr1, aes(x=PLACENTAVEKT, y=VEKT))+ geom_point() +
+  ylab("Birth Weight") + xlab("Placental Weight") +
+  stat_smooth(method='lm',
+              formula = y ~ x)
+```
+
+
+Reduce the dataset to include only singletons.
+
+Again fit a GLM and plot the regression.
+
+
+```{r}
+mfr2<-subset(mfr, PLACENTAVEKT<2000 & PLACENTAVEKT>200 & VEKT>1000 & (KJONN=="Boy"|KJONN=="Girl")
+             & FLERFODSEL=="Single birth", select=c(PLACENTAVEKT,VEKT,SVLEN, SVLEN.UL.DG, SVLEN.SM.DG, FAAR, HELSEREGION, KJONN))
+```
+
+
+```{r}
+mfr2[1:2] <- lapply(mfr2[1:2], as.numeric)
+fit2 <- glm(VEKT ~ PLACENTAVEKT, data=mfr2,
+family = gaussian(link="identity"))
+summary(fit2)
+ggplot(mfr2, aes(x=PLACENTAVEKT, y=VEKT))+ geom_point() + 
+  ylab("Birth Weight") + xlab("Placental Weight") +
+  stat_smooth(method='lm',
+             formula = y ~ x )
+```
+
+The multiple births appear to be a different relationship then that of singletons. The birth weight is much lower  even when the placental weight is reasonably high.
+
+
+There are still a few outliers within the dataset and I remove these to visualise their leverage on the regression.
+
+
+```{r}
+mfr3<-mfr2[(mfr2$PLACENTAVEKT<1500|mfr2$VEKT>2200),]
+```
+
+```{r}
+mfr4<-mfr3[(mfr3$PLACENTAVEKT<1700|mfr3$VEKT>4000),]
+```
+
+
+Fit a GLm and plot the regression. 
+
+
+```{r}
+mfr4[1:2] <- lapply(mfr4[1:2], as.numeric)
+fit4 <- glm(VEKT ~ PLACENTAVEKT, data=mfr4,
+family = gaussian(link="identity"))
+summary(fit4)
+ggplot(mfr3, aes(x=PLACENTAVEKT, y=VEKT))+ geom_point() +
+  ylab("Birth Weight") + xlab("Placental Weight") +
+  stat_smooth(method='lm',
+               formula = y ~ x )
+```
+
+
+The outliers didn't seem to exert much leverage on the regression but the relationship between placental weight and birth weight isn't linear and the non-linear relationship needs to be explored.
+
+
+I used generalised additive models to look at the non0linear relationship.
+
+
+The first GAM model employed a cubic spline smoothing funtion.
+
+
+```{r}
+mfr4[1:2] <- lapply(mfr4[1:2], as.numeric)
+gam1 <- gam(VEKT ~ s(PLACENTAVEKT, bs="cs", k=6),
+           family=gaussian,data=mfr4)
+summary(gam1)
+ggplot(mfr4, aes(x = PLACENTAVEKT, y = VEKT)) + geom_point() + xlab("Placental Weight") + ylab("Birth Weight") +
+  (geom_smooth(method="gam",formula=y ~ s(x, bs = "cs", k=6))) 
+```
+
+
+The second GAM model I employed a penalised spline as a smoothing function.
+
+
+```{r}
+mfr4[1:2] <- lapply(mfr4[1:2], as.numeric)
+gam2 <- gam(VEKT ~ s(PLACENTAVEKT, bs="ps", k=4),
+           family=gaussian,data=mfr4)
+summary(gam2)
+p<-ggplot(mfr4, aes(x = PLACENTAVEKT, y = VEKT)) + geom_point() + xlab("Placental Weight") + ylab("Birth Weight")
+p + stat_smooth(method = "gam", formula = y ~ s(x, bs="ps", k = 4), size = 1)
+```
+
+
+AIC(fit4, gam1, gam2)
+
+
+According to the AIC the second GAM model with the penalised spline fits the data slightly better but there is no real difference. Visually I think the cubic splines fit better as the penalised smoothing suggest an increase in the association in the higher placental weight. At the moment though, I think this is just due to noise and more work with smoothing functions will improve the models. 
+
+
+**Please note the investigations on the regresion models are not complete and need further work once the finalised dataset is being analysed.
+
+
+Furthermore, both birth weight and placental weight need to be adjusted for gestational age which I am currently working on.
+
+I will send these adjusted models through asap.
