@@ -1,0 +1,156 @@
+---
+title: "Placental Weight vs BWT"
+author: "Chris Flatley"
+date: "12 March 2019"
+#output: html_document
+output:
+ md_document:
+   variant: markdown_github
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r, warning=FALSE, message=FALSE}
+library(ggplot2)
+library(glm2)
+library(mgcv)
+library(dplyr)
+```
+
+```{r}
+load(file="C:/Users/cjfla/Desktop/v10/r_data/2018_02_01_PDB315_MFR_520_v10.RData")
+```
+
+
+First subset the daa to exclude extreme outliers and unknown fetal gender.
+
+
+```{r}
+mfr1<-subset(mfr, PLACENTAVEKT<2000 & PLACENTAVEKT>200 & VEKT>1000 & (KJONN=="Boy"|KJONN=="Girl"), select=c(PLACENTAVEKT,VEKT,SVLEN, SVLEN.DG, FAAR, HELSEREGION, KJONN, FLERFODSEL, ROBSON.10, MISD, MORS.ALDER.KAT.K8))
+```
+
+
+Fit a generaised linear model to this data and plot the regression line. 
+
+
+```{r}
+mfr1[1:2] <- lapply(mfr1[1:2], as.numeric)
+fit1 <- glm(VEKT ~ PLACENTAVEKT, data=mfr1,
+family = gaussian(link="identity"))
+summary(fit1)
+ggplot(mfr1, aes(x=PLACENTAVEKT, y=VEKT))+ geom_point() +
+  ylab("Birth Weight") + xlab("Placental Weight") +
+  stat_smooth(method='lm',
+              formula = y ~ x)
+```
+
+
+Reduce the dataset to include only singletons.
+
+Again fit a GLM and plot the regression.
+
+
+```{r}
+mfr2<-subset(mfr1, FLERFODSEL=="Single birth")
+```
+
+
+```{r}
+mfr2[1:2] <- lapply(mfr2[1:2], as.numeric)
+fit2 <- glm(VEKT ~ PLACENTAVEKT, data=mfr2,
+family = gaussian(link="identity"))
+summary(fit2)
+ggplot(mfr2, aes(x=PLACENTAVEKT, y=VEKT))+ geom_point() + 
+  ylab("Birth Weight") + xlab("Placental Weight") +
+  stat_smooth(method='lm',
+             formula = y ~ x )
+```
+
+
+
+Next I will exclude babies with congenital abnormalities.
+
+
+```{r}
+mfr3<-filter(mfr2, MISD!="Yes"|is.na(MISD))
+```
+
+
+```{r}
+mfr3[1:2] <- lapply(mfr3[1:2], as.numeric)
+fit3 <- glm(VEKT ~ PLACENTAVEKT, data=mfr3,
+family = gaussian(link="identity"))
+summary(fit3)
+ggplot(mfr3, aes(x=PLACENTAVEKT, y=VEKT))+ geom_point() + 
+  ylab("Birth Weight") + xlab("Placental Weight") +
+  stat_smooth(method='lm',
+             formula = y ~ x )
+```
+
+
+Next I will remove preterm fetuses due to the higher prevalence of vascular abnormalities in this cohort that would affect the placenta and fetal growth.
+
+
+```{r}
+mfr4<-filter(mfr3, SVLEN>=37)
+```
+
+
+```{r}
+mfr4[1:2] <- lapply(mfr4[1:2], as.numeric)
+fit4 <- glm(VEKT ~ PLACENTAVEKT, data=mfr4,
+family = gaussian(link="identity"))
+summary(fit4)
+ggplot(mfr4, aes(x=PLACENTAVEKT, y=VEKT))+ geom_point() + 
+  ylab("Birth Weight") + xlab("Placental Weight") +
+  stat_smooth(method='lm',
+             formula = y ~ x )
+```
+
+
+Due to the confounding affect of gestational age I will adjust for it in the regression.
+
+
+```{r}
+mfr4[1:4] <- lapply(mfr4[1:4], as.numeric)
+fit4 <- glm(VEKT ~ PLACENTAVEKT + SVLEN, data=mfr4,
+family = gaussian(link="identity"))
+summary(fit4)
+ggplot(mfr4,aes(x=PLACENTAVEKT, y=VEKT,color=SVLEN))+geom_point() + 
+  ylab("Birth Weight") + xlab("Placental Weight") +
+   stat_smooth(method="lm",se=TRUE)
+```
+
+
+Graph the relationship of placental weight across gesational ages.
+
+
+```{r}
+library(ggiraphExtra)
+library(ggiraph)
+fit5 <- lm(VEKT ~ PLACENTAVEKT + SVLEN, data=mfr4)
+ggPredict(fit5,interactive=FALSE) + ylab("Birth Weight")+ xlab("Placental Weight") 
+```
+
+
+
+
+```{r}
+fit6 <- glm(VEKT ~ PLACENTAVEKT + SVLEN + KJONN, data=mfr4,
+family = gaussian(link="identity"))
+summary(fit6)
+```
+
+
+Graphing the relationship between Placental Weight by fetal gender across gestational ages
+
+
+```{r}
+fit7 <- lm(VEKT ~ PLACENTAVEKT + SVLEN + KJONN, data=mfr4)
+ggPredict(fit7,interactive=FALSE) + ylab("Birth Weight")+ xlab("Placental Weight") 
+```
+
+
+
+
